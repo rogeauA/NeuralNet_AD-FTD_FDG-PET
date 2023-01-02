@@ -1,20 +1,20 @@
 # necessary imports
-import os
+import os, time, random
 import nibabel as nib
 import numpy as np
 import pandas as pd
-import time
 import tensorflow as tf
-import random
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Flatten, Conv3D, MaxPool3D, BatchNormalization, Dropout
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
 from skopt import BayesSearchCV
+from sklearn.model_selection import KFold
 
 # define a function to generate lists of paths for each scan
+# normalized scan were named 'normInt_Vol_wmean.nii'
 def getAllFilesinDir(path,resultList):
     filesList=os.listdir(path)
     for fileName in filesList:
@@ -40,15 +40,18 @@ CN_scan_paths  = []
 dir_CN = "data_CNN/CN"
 getAllFilesinDir(dir_CN, CN_scan_paths)
 
+# randomly shuffle lists of paths
 random.seed(5)
 random.shuffle(FTD_scan_paths)
 random.shuffle(AD_scan_paths)
 random.shuffle(CN_scan_paths)
 
+# randomly selected train set
 FTD_train_scans = FTD_scan_paths[:173]
 AD_train_scans = AD_scan_paths[:179]
 CN_train_scans = CN_scan_paths[:180]
 
+# randomly selected test set
 FTD_test_scans = FTD_scan_paths[173:]
 AD_test_scans = AD_scan_paths[179:]
 CN_test_scans = CN_scan_paths[180:]
@@ -67,9 +70,8 @@ def preprocess_scan(path):
     volume = read_nifti(path)
     volume = type_float32(volume)
     return volume
-    
-    
-# transform each scan into an np array and remove the top 10 layers and the bottom 9 layers
+     
+# transform each scan into an np array and remove the top 9 layers and the bottom 10 layers
 train_FTD_scans = (np.array([preprocess_scan(path) for path in FTD_train_scans]))[:,:,:,10:70]
 train_AD_scans = (np.array([preprocess_scan(path) for path in AD_train_scans]))[:,:,:,10:70]
 train_CN_scans = (np.array([preprocess_scan(path) for path in CN_train_scans]))[:,:,:,10:70]
@@ -95,7 +97,7 @@ X_test = np.concatenate((test_FTD_scans, test_AD_scans, test_CN_scans), axis=0)
 y_test = np.concatenate((test_FTD_labels, test_AD_labels, test_CN_labels), axis=0)
 
 # one-hot encoding
-#y_train = to_categorical(y_train)
+y_train = to_categorical(y_train)
 y_test = to_categorical(y_test)
 
 # use the bayessearchcv function from the skopt library to determine efficient sets of hyperparameters
@@ -133,7 +135,7 @@ def create_model(learning_rate=0.0003, optimizer ='adagrad', dropout=0.4, initia
 # wrap the model into a keras classifier to use bayessearchcv
 keras_class = KerasClassifier(build_fn=create_model, epochs=150, batch_size=4, verbose=1)
 
-# large ranges of hyperparameters were explored
+# range of hyperparameters to explore
 parameters = {
     "learning_rate": [0.01, 0.006, 0.003, 0.001, 0.0006, 0.0003, 0.0001],
     "optimizer": ['adam', 'adadelta', 'adagrad'],
@@ -146,8 +148,8 @@ parameters = {
 early_stopping = EarlyStopping(monitor = 'val_loss', patience = 20)
 
 start_time = time.time()
-cv = KFold(n_splits=2, shuffle=True)
-bayes_search = BayesSearchCV(keras_class, parameters, n_iter = 20, cv=cv)
+cv = KFold(n_splits=5, shuffle=True)
+bayes_search = BayesSearchCV(keras_class, parameters, n_iter = 200, cv=cv)
 bayes_search.fit(X_train, y_train, validation_split = 0.2, callbacks = [early_stopping])
 with open('time.txt', 'w') as f:
     f.write("--- %s seconds ---" % (time.time() - start_time))
