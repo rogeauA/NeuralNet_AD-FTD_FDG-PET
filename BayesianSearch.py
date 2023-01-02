@@ -4,24 +4,15 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 import time
-import joblib
-import skopt
-import shutil
-import matplotlib.pyplot as plt
 import tensorflow as tf
 import random
-from scipy import ndimage, interp
-from itertools import cycle
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Flatten, Conv3D, MaxPool3D, BatchNormalization, Dropout
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
-import tensorflow.keras.backend as K
 from skopt import BayesSearchCV
-from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import roc_curve, auc
 
 # define a function to generate lists of paths for each scan
 def getAllFilesinDir(path,resultList):
